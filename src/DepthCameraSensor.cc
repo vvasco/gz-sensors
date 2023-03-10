@@ -116,6 +116,15 @@ class gz::sensors::DepthCameraSensorPrivate
   /// \brief Just a mutex for thread safety
   public: std::mutex mutex;
 
+  /// \brief True if camera is triggered by a topic
+  public: bool isTriggeredCamera{false};
+
+  /// \brief True if camera has been triggered by a topic
+  public: bool isTriggered{false};
+
+  /// \brief Topic for camera trigger
+  public: std::string triggerTopic{""};
+
   /// \brief True to save images
   public: bool saveImage = false;
 
@@ -281,6 +290,33 @@ bool DepthCameraSensor::Load(const sdf::Sensor &_sdf)
 
   gzdbg << "Depth images for [" << this->Name() << "] advertised on ["
          << this->Topic() << "]" << std::endl;
+
+  if (_sdf.CameraSensor()->Triggered())
+  {
+    if (!_sdf.CameraSensor()->TriggerTopic().empty())
+    {
+      this->dataPtr->triggerTopic = _sdf.CameraSensor()->TriggerTopic();
+    }
+    else
+    {
+      this->dataPtr->triggerTopic =
+          transport::TopicUtils::AsValidTopic(this->dataPtr->triggerTopic);
+
+      if (this->dataPtr->triggerTopic.empty())
+      {
+        gzerr << "Invalid trigger topic name [" <<
+        this->dataPtr->triggerTopic << "]" << std::endl;
+        return false;
+      }
+    }
+
+    this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
+        &DepthCameraSensor::OnTrigger, this);
+
+    gzdbg << "Camera trigger messages for [" << this->Name() << "] subscribed"
+          << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
+    this->dataPtr->isTriggeredCamera = true;
+  }
 
   if (!this->AdvertiseInfo())
     return false;
@@ -522,6 +558,13 @@ bool DepthCameraSensor::Update(
     return false;
   }
 
+  // render only if necessary
+  if (this->dataPtr->isTriggeredCamera &&
+      !this->dataPtr->isTriggered)
+  {
+    return true;
+  }
+
   if (this->HasInfoConnections())
   {
     // publish the camera info message
@@ -611,7 +654,20 @@ bool DepthCameraSensor::Update(
     this->AddSequence(this->dataPtr->pointMsg.mutable_header(), "pointMsg");
     this->dataPtr->pointPub.Publish(this->dataPtr->pointMsg);
   }
+
+  if (this->dataPtr->isTriggeredCamera)
+  {
+    return this->dataPtr->isTriggered = false;
+  }
+
   return true;
+}
+
+//////////////////////////////////////////////////
+void DepthCameraSensor::OnTrigger(const gz::msgs::Boolean &/*_msg*/)
+{
+  std::lock_guard<std::mutex> lock(this->dataPtr->mutex);
+  this->dataPtr->isTriggered = true;
 }
 
 //////////////////////////////////////////////////

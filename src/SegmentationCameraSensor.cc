@@ -102,6 +102,15 @@ class gz::sensors::SegmentationCameraSensorPrivate
   /// \brief Just a mutex for thread safety
   public: std::mutex mutex;
 
+  /// \brief True if camera is triggered by a topic
+  public: bool isTriggeredCamera{false};
+
+  /// \brief True if camera has been triggered by a topic
+  public: bool isTriggered{false};
+
+  /// \brief Topic for camera trigger
+  public: std::string triggerTopic{""};
+
   /// \brief True to save samples
   public: bool saveSamples = false;
 
@@ -222,6 +231,33 @@ bool SegmentationCameraSensor::Load(const sdf::Sensor &_sdf)
   gzdbg << "Segmentation labels map image for [" << this->Name()
     << "] advertised on [" << this->Topic()
     << this->dataPtr->topicLabelsMapSuffix << "]\n";
+
+  if (_sdf.CameraSensor()->Triggered())
+  {
+    if (!_sdf.CameraSensor()->TriggerTopic().empty())
+    {
+      this->dataPtr->triggerTopic = _sdf.CameraSensor()->TriggerTopic();
+    }
+    else
+    {
+      this->dataPtr->triggerTopic =
+          transport::TopicUtils::AsValidTopic(this->dataPtr->triggerTopic);
+
+      if (this->dataPtr->triggerTopic.empty())
+      {
+        gzerr << "Invalid trigger topic name [" <<
+        this->dataPtr->triggerTopic << "]" << std::endl;
+        return false;
+      }
+    }
+
+    this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
+        &SegmentationCameraSensor::OnTrigger, this);
+
+    gzdbg << "Camera trigger messages for [" << this->Name() << "] subscribed"
+          << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
+    this->dataPtr->isTriggeredCamera = true;
+  }
 
   // TODO(anyone) Access the info topic from the parent class
   if (!this->AdvertiseInfo(this->Topic() + "/camera_info"))
@@ -449,6 +485,13 @@ bool SegmentationCameraSensor::Update(
     this->PublishInfo(_now);
   }
 
+  // render only if necessary
+  if (this->dataPtr->isTriggeredCamera &&
+      !this->dataPtr->isTriggered)
+  {
+    return true;
+  }
+
   // don't render if there are no subscribers nor saving
   if (!this->dataPtr->coloredMapPublisher.HasConnections() &&
     !this->dataPtr->labelsMapPublisher.HasConnections() &&
@@ -534,7 +577,19 @@ bool SegmentationCameraSensor::Update(
   if (this->dataPtr->saveSamples)
     this->dataPtr->SaveSample();
 
+  if (this->dataPtr->isTriggeredCamera)
+  {
+    return this->dataPtr->isTriggered = false;
+  }
+
   return true;
+}
+
+//////////////////////////////////////////////////
+void SegmentationCameraSensor::OnTrigger(const gz::msgs::Boolean &/*_msg*/)
+{
+  std::lock_guard<std::mutex> lock(this->dataPtr->mutex);
+  this->dataPtr->isTriggered = true;
 }
 
 /////////////////////////////////////////////////
