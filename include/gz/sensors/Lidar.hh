@@ -21,6 +21,7 @@
 #include <string>
 #include <vector>
 
+#include <gz/msgs/boolean.pb.h>
 #include <gz/utils/SuppressWarning.hh>
 #include <gz/common/Event.hh>
 
@@ -59,6 +60,10 @@ namespace gz
       /// \return true if the update was successfull
       public: virtual bool Update(
         const std::chrono::steady_clock::duration &_now) override;
+
+      /// \brief Callback for triggered subscription
+      /// \param[in] _msg Boolean message
+      private: void OnTrigger(const gz::msgs::Boolean &/*_msg*/);
 
       /// \brief Apply noise to the laser buffer, if noise has been
       /// configured. This should be called before PublishLidarScan if you
