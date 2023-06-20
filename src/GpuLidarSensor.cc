@@ -70,6 +70,12 @@ class gz::sensors::GpuLidarSensorPrivate
 
   /// \brief Publisher for the publish point cloud message.
   public: transport::Node::Publisher pointPub;
+
+  /// \brief True if lidar has been triggered by a topic
+  public: bool isTriggered{false};
+
+  /// \brief Topic for lidar trigger
+  public: std::string triggerTopic{""};
 };
 
 //////////////////////////////////////////////////
@@ -145,6 +151,15 @@ bool GpuLidarSensor::Load(const sdf::Sensor &_sdf)
   this->dataPtr->sceneChangeConnection =
     RenderingEvents::ConnectSceneChangeCallback(
         std::bind(&GpuLidarSensor::SetScene, this, std::placeholders::_1));
+
+  this->dataPtr->triggerTopic =
+      transport::TopicUtils::AsValidTopic(this->Topic() + "/trigger");
+
+  this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
+      &GpuLidarSensor::OnTrigger, this);
+
+  gzdbg << "Lidar trigger messages for [" << this->Name() << "] subscribed"
+        << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
 
   // Create the point cloud publisher
   this->SetTopic(this->Topic() + "/points");
@@ -275,6 +290,12 @@ bool GpuLidarSensor::Update(const std::chrono::steady_clock::duration &_now)
     return false;
   }
 
+  // render only if necessary
+  if (!this->dataPtr->isTriggered)
+  {
+    return true;
+  }
+
   this->Render();
 
   // Apply noise before publishing the data.
@@ -309,7 +330,17 @@ bool GpuLidarSensor::Update(const std::chrono::steady_clock::duration &_now)
       this->dataPtr->pointPub.Publish(this->dataPtr->pointMsg);
     }
   }
+
+  this->dataPtr->isTriggered = false;
+
   return true;
+}
+
+//////////////////////////////////////////////////
+void GpuLidarSensor::OnTrigger(const gz::msgs::Boolean &/*_msg*/)
+{
+  std::lock_guard<std::mutex> lock(this->lidarMutex);
+  this->dataPtr->isTriggered = true;
 }
 
 /////////////////////////////////////////////////
