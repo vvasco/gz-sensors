@@ -22,6 +22,7 @@
 
 #include <sdf/sdf.hh>
 
+#include <gz/msgs/boolean.pb.h>
 #include <gz/utils/SuppressWarning.hh>
 
 // TODO(louise) Remove these pragmas once gz-rendering is disabling the
