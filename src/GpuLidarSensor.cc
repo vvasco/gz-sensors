@@ -167,12 +167,8 @@ bool GpuLidarSensor::Load(const sdf::Sensor &_sdf)
     this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
       &GpuLidarSensor::OnTrigger, this);
 
-    gzerr << "Lidar trigger messages for [" << this->Name() << "] subscribed"
+    gzdbg << "Lidar trigger messages for [" << this->Name() << "] subscribed"
         << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
-  }
-  else 
-  {
-    gzerr << "Lidar not triggered" << std::endl;
   }
 
   // Create the point cloud publisher
