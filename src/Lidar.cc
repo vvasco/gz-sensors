@@ -56,12 +56,6 @@ class gz::sensors::LidarPrivate
 
   /// \brief Sdf sensor.
   public: sdf::Lidar sdfLidar;
-
-  /// \brief True if lidar has been triggered by a topic
-  public: bool isTriggered{false};
-
-  /// \brief Topic for lidar trigger
-  public: std::string triggerTopic{""};
 };
 
 //////////////////////////////////////////////////
@@ -147,15 +141,6 @@ bool Lidar::Load(const sdf::Sensor &_sdf)
     gzerr << "Lidar: Image has 0 size!\n";
   }
 
-  this->dataPtr->triggerTopic =
-      transport::TopicUtils::AsValidTopic(this->Topic() + "/trigger");
-
-  this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
-      &Lidar::OnTrigger, this);
-
-  gzdbg << "Lidar trigger messages for [" << this->Name() << "] subscribed"
-        << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
-
   // create message
   this->dataPtr->laserMsg.set_count(this->RangeCount());
   this->dataPtr->laserMsg.set_range_min(this->RangeMin());
@@ -221,13 +206,6 @@ bool Lidar::Update(const std::chrono::steady_clock::duration &/*_now*/)
 }
 
 //////////////////////////////////////////////////
-void Lidar::OnTrigger(const gz::msgs::Boolean &/*_msg*/)
-{
-  std::lock_guard<std::mutex> lock(this->lidarMutex);
-  this->dataPtr->isTriggered = true;
-}
-
-//////////////////////////////////////////////////
 void Lidar::ApplyNoise()
 {
   if (this->dataPtr->noises.find(LIDAR_NOISE) != this->dataPtr->noises.end())
@@ -258,12 +236,6 @@ bool Lidar::PublishLidarScan(const std::chrono::steady_clock::duration &_now)
     return false;
 
   std::lock_guard<std::mutex> lock(this->lidarMutex);
-
-  // render only if necessary
-  if (!this->dataPtr->isTriggered)
-  {
-    return true;
-  }
 
   *this->dataPtr->laserMsg.mutable_header()->mutable_stamp() =
     msgs::Convert(_now);
@@ -311,8 +283,6 @@ bool Lidar::PublishLidarScan(const std::chrono::steady_clock::duration &_now)
   // publish
   this->AddSequence(this->dataPtr->laserMsg.mutable_header());
   this->dataPtr->pub.Publish(this->dataPtr->laserMsg);
-
-  this->dataPtr->isTriggered = false;
 
   return true;
 }
