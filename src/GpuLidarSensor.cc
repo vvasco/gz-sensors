@@ -71,6 +71,9 @@ class gz::sensors::GpuLidarSensorPrivate
   /// \brief Publisher for the publish point cloud message.
   public: transport::Node::Publisher pointPub;
 
+  /// \brief True if lidar is a triggered sensor
+  public: bool isTriggeredLidar{false};
+
   /// \brief True if lidar has been triggered by a topic
   public: bool isTriggered{false};
 
@@ -151,15 +154,26 @@ bool GpuLidarSensor::Load(const sdf::Sensor &_sdf)
   this->dataPtr->sceneChangeConnection =
     RenderingEvents::ConnectSceneChangeCallback(
         std::bind(&GpuLidarSensor::SetScene, this, std::placeholders::_1));
+  
+  // trick to check if the sensor has to be triggered
+  // check if the topic name includes "triggered"
+  if (this->Topic().find("triggered") != std::string::npos)
+  {
+    this->dataPtr->isTriggeredLidar = true;
 
-  this->dataPtr->triggerTopic =
+    this->dataPtr->triggerTopic =
       transport::TopicUtils::AsValidTopic(this->Topic() + "/trigger");
 
-  this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
+    this->dataPtr->node.Subscribe(this->dataPtr->triggerTopic,
       &GpuLidarSensor::OnTrigger, this);
 
-  gzdbg << "Lidar trigger messages for [" << this->Name() << "] subscribed"
+    gzerr << "Lidar trigger messages for [" << this->Name() << "] subscribed"
         << " on [" << this->dataPtr->triggerTopic << "]" << std::endl;
+  }
+  else 
+  {
+    gzerr << "Lidar not triggered" << std::endl;
+  }
 
   // Create the point cloud publisher
   this->SetTopic(this->Topic() + "/points");
@@ -291,7 +305,7 @@ bool GpuLidarSensor::Update(const std::chrono::steady_clock::duration &_now)
   }
 
   // render only if necessary
-  if (!this->dataPtr->isTriggered)
+  if (this->dataPtr->isTriggeredLidar && !this->dataPtr->isTriggered)
   {
     return true;
   }
@@ -331,7 +345,10 @@ bool GpuLidarSensor::Update(const std::chrono::steady_clock::duration &_now)
     }
   }
 
-  this->dataPtr->isTriggered = false;
+  if (this->dataPtr->isTriggeredLidar)
+  {
+    this->dataPtr->isTriggered = false;
+  }
 
   return true;
 }
