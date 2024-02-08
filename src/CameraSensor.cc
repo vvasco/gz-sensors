@@ -762,7 +762,7 @@ bool CameraSensor::AdvertiseInfo()
       if (!part.empty())
         this->dataPtr->infoTopic += "/" + part;
     }
-    this->dataPtr->infoTopic += "/camera_info";
+    this->dataPtr->infoTopic = this->Topic() + "/camera_info";
   }
 
   return this->AdvertiseInfo(this->dataPtr->infoTopic);

@@ -22,6 +22,7 @@
 
 #include <sdf/sdf.hh>
 
+#include <gz/msgs/boolean.pb.h>
 #include <gz/utils/SuppressWarning.hh>
 
 // TODO(louise) Remove these pragmas once gz-rendering is disabling the
@@ -88,6 +89,9 @@ namespace gz
 
       /// \brief Create Lidar sensor
       public: virtual bool CreateLidar() override;
+
+      /// \brief Callback for triggering Lidar sensor
+      private: void OnTrigger(const gz::msgs::Boolean &/*_msg*/);
 
       /// \brief Gets if sensor is horizontal
       /// \return True if horizontal, false if not
